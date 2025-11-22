@@ -21,8 +21,8 @@ usage() {
     echo "  -o, --output <file>                       - Output DOT file (default: dependencies.dot)"
     echo "  -e, --exclude <regex>                     - Exclude path or modules matching pattern (can be used multiple times). Support regex."
     echo "                                              Example: *Tests, Test*, *Mock*"
-    echo "  --include-system                          - Include system frameworks in the graph (default: off)"
-    echo "  --trim-prefix <regex>                     - Extract root module name using regex (use parenthesis to capture)"
+    echo "  --include-system-framework                          - Include system frameworks in the graph (default: off)"
+    echo "  --prefer-root <regex>                     - Extract root module name using regex (use parenthesis to capture) from path"
     echo "                                              Can be specified multiple times. First matching pattern is used."
     echo "                                              Example: '^Targets/([^/]+)/' or '^Toolkit/Sources/([^/]+)/'"
     echo ""
@@ -30,8 +30,8 @@ usage() {
     echo "  $0 ./project"
     echo "  $0 ./project -o custom_deps.dot"
     echo "  $0 ./project --exclude '*Tests'"
-    echo "  $0 ./project --exclude '*Tests' --exclude '*Mocks' -o deps.dot --include-system"
-    echo "  $0 ./project --trim-prefix '^Targets/([^/]+)/' --trim-prefix '^Toolkit/Sources/([^/]+)/'"
+    echo "  $0 ./project --exclude '*Tests' --exclude '*Mocks' -o deps.dot --include-system-framework"
+    echo "  $0 ./project --prefer-root '^Targets/([^/]+)/' --prefer-root '^Toolkit/Sources/([^/]+)/'"
     exit 1
 }
 
@@ -43,7 +43,7 @@ fi
 INPUT_PATH="$1"
 shift
 
-TRIM_PREFIX_REGEXES=()
+PREFERRED_ROOT_REGEXES=()
 INCLUDE_SYSTEM_FRAMEWORKS=false
 OUTPUT_FILE="dependencies.dot"
 EXCLUDE_PATTERNS=()
@@ -67,16 +67,16 @@ while [ $# -gt 0 ]; do
             EXCLUDE_PATTERNS+=("$2")
             shift 2
             ;;
-        --include-system)
+        --include-system-framework)
             INCLUDE_SYSTEM_FRAMEWORKS=true
             shift
             ;;
-        --trim-prefix)
+        --prefer-root)
             if [ $# -lt 2 ]; then
-                echo -e "${RED}Error: --trim-prefix requires a regex pattern as argument${NC}"
+                echo -e "${RED}Error: --prefer-root requires a regex pattern as argument${NC}"
                 exit 1
             fi
-            TRIM_PREFIX_REGEXES+=("$2")
+            PREFERRED_ROOT_REGEXES+=("$2")
             shift 2
             ;;
         -h|--help)
@@ -109,9 +109,9 @@ if [ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]; then
     done
 fi
 
-if [ ${#TRIM_PREFIX_REGEXES[@]} -gt 0 ]; then
+if [ ${#PREFERRED_ROOT_REGEXES[@]} -gt 0 ]; then
     echo -e "${BLUE}📑 Using root regexes:${NC}"
-    for r in "${TRIM_PREFIX_REGEXES[@]}"; do
+    for r in "${PREFERRED_ROOT_REGEXES[@]}"; do
         echo -e "${BLUE}   - $r${NC}"
     done
 fi
@@ -244,15 +244,15 @@ is_module_excluded() {
     return 1
 }
 
-# Given a filepath, determine the module name via TRIM_PREFIX_REGEXES
+# Given a filepath, determine the module name via PREFERRED_ROOT_REGEXES
 file_to_module() {
     local relative="$1"
-    if [[ -z "${TRIM_PREFIX_REGEXES+x}" ]]; then
+    if [[ -z "${PREFERRED_ROOT_REGEXES+x}" ]]; then
         local root="${relative%%/*}"
         echo "$root"
         return
     fi
-    for regex in "${TRIM_PREFIX_REGEXES[@]}"; do
+    for regex in "${PREFERRED_ROOT_REGEXES[@]}"; do
         if [[ "$relative" =~ $regex ]]; then
             echo "${BASH_REMATCH[1]}"
             return
@@ -292,10 +292,10 @@ normalize_module_name() {
 # Step 1: Build list of project modules from directory structure
 echo -e "${GREEN}📂 Discovering project modules...${NC}"
 
-if [ ${#TRIM_PREFIX_REGEXES[@]} -gt 0 ]; then
+if [ ${#PREFERRED_ROOT_REGEXES[@]} -gt 0 ]; then
     find "$ROOT_PATH" -type f -name "*.swift" | while read -r file; do
         rel="${file#$ROOT_PATH/}"
-        for regex in "${TRIM_PREFIX_REGEXES[@]}"; do
+        for regex in "${PREFERRED_ROOT_REGEXES[@]}"; do
             if [[ "$rel" =~ $regex ]]; then
                 mod="${BASH_REMATCH[1]}"
                 echo "$mod" >> "$PROJECT_MODULES_FILE"

@@ -3,7 +3,7 @@
 This script recursively reads all `import` declarations in your Swift files from a specified input path and uses the [DOT language](https://graphviz.org/doc/info/lang.html) to generate and visualize the corresponding dependency graph.
 
 > ⚠️ This script relies solely on your project's folder hierarchy to match module names. It does not perform static analysis or attempt to build the project.  
-> You can use options like `--trim-prefix` to remap paths to module names when necessary.
+> You can use options like `--prefer-root` to capture a name from a path and use it as a specific module name when necessary (default: root of the path use as module name).
 
 ![Generated schema](./schema.png)
 
@@ -24,20 +24,20 @@ Use the `-e` option to exclude some path(s) or module(s) from your analysis, you
 `Ex: ./swift_dependency_analyzer.sh ./project --exclude '*Tests' --exclude '*Mocks'`
 
 ``` 
---include-system                          - Include system frameworks in the graph (default: off)"
+--include-system-framework                          - Include system frameworks in the graph (default: off)"
 ```
 
-Use the `--include-system` option to include system frameworks (like SwiftUI, UIKit, Combine, ...) in your dependency graph.
+Use the `--include-system-framework` option to include system frameworks (like SwiftUI, UIKit, Combine, ...) in your dependency graph.
 
 ```
---trim-prefix <regex>                     - Extract root module name using regex (use parenthesis to capture)
+--prefer-root <regex>                     - Extract root module name using regex (use parenthesis to capture) from path
                                           Can be specified multiple times. First matching pattern is used.
                                           Example: '^Targets/([^/]+)/' or '^Toolkit/Sources/([^/]+)/'
 ```
 
-Use `--trim-prefix` to remap a path to a specific module name when your folder hierarchy names don’t match. You can use this option multiple times within the same command. It also supports regex matching. 
+Use `--prefer-root` to capture a name from a path and use it as a specific module name when your folder hierarchy names don’t match your module names. You can use this option multiple times within the same command. It also supports regex matching.
 
-By default, swift_dependency_analyzer uses the root folder name as the module name, but this isn’t always desirable—such as when working with a Swift Package that contains multiple modules.
+By default, swift_dependency_analyzer uses the root folder name of the path as the module name, but this isn’t always desirable—such as when working with a Swift Package that contains multiple modules.
 
 Let's consider a concrete example—this could be a project you might have.
 
@@ -73,13 +73,25 @@ Payment/Tests
 
 By default swift_dependency_analyzer will use root folder as name of a module. So by default there is 3 modules considered by the script: `App`, `Authentication`, `Payment`
 
-Most of the time it is OK, but we could prefer avoid root for some paths. You can use `--trim-prefix` in that case:
-In our example using `--trim-prefix '/Sources/([^/]+)/'` will capture chars after `/Sources` until next `/` is reached and use it as module name instead of the root folder.
+Most of the time it is OK, but we could prefer avoid root for some paths. You can use `--prefer-root` in that case:
+In our example using `--prefer-root '/Sources/([^/]+)/'` will capture chars after `/Sources` until next `/` is reached and use it as module name instead of the root folder.
 Resulting in: `App`, `AuthenticationUI`, `AuthenticationCore`, `PaymentUI`
 
 ### Usage
 
 ```
+./swift_dependency_analyzer.sh ./my-app
+
+./swift_dependency_analyzer.sh ./my-app -o custom_deps.dot
+
+./swift_dependency_analyzer.sh ./my-app --exclude '*Tests'
+
+./swift_dependency_analyzer.sh ./my-app --exclude '*Tests' --exclude '*Mocks' -o deps.dot --include-system-framework
+
+./swift_dependency_analyzer.sh ./my-app --prefer-root '^Targets/([^/]+)/' --prefer-root '^Toolkit/Sources/([^/]+)/'
+
+./swift_dependency_analyzer.sh ~/Documents/my-app --include-system-framework --exclude "*Tests*" --prefer-root "Sources/([^/]+)/"
+
 ./swift_dependency_analyzer.sh ~/Documents/my-app\
  --exclude '*Tests*'\
  --exclude '*Firebase*'\
@@ -95,16 +107,6 @@ Resulting in: `App`, `AuthenticationUI`, `AuthenticationCore`, `PaymentUI`
  --exclude 'Alamofire'\
  --exclude 'BatchExtension'\
  --exclude 'Lottie'\
- --trim-prefix '^Targets/([^/]+)/'\
- --trim-prefix '/Sources/([^/]+)/'
-
-./swift_dependency_analyzer.sh ./my-app
-
-./swift_dependency_analyzer.sh ./my-app -o custom_deps.dot
-
-./swift_dependency_analyzer.sh ./my-app --exclude '*Tests'
-
-./swift_dependency_analyzer.sh ./my-app --exclude '*Tests' --exclude '*Mocks' -o deps.dot --include-system
-
-./swift_dependency_analyzer.sh ./my-app --trim-prefix '^Targets/([^/]+)/' --trim-prefix '^Toolkit/Sources/([^/]+)/'
+ --prefer-root '^Targets/([^/]+)/'\
+ --prefer-root '/Sources/([^/]+)/'
 ```
